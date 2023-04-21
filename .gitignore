@@ -1,0 +1,9 @@
+.checkpoint/
+.dataset.py
+*.out
+*.slurm
+ptlflow_logs/
+my_folder/
+runs/
+*.ckpt
+*.png
