@@ -8,7 +8,7 @@ import datetime
 
 import torch.utils.data
 import torchvision.transforms as transforms
-
+_EPS = np.finfo(float).eps * 4.0
 
 def default_image_loader(path):
     return Image.open(path).convert('RGB') #.transpose(0, 2, 1)
@@ -18,7 +18,7 @@ class VisualOdometryDataLoader(torch.utils.data.Dataset):
                  loader=default_image_loader):
         self.base_path = datapath
         if test:
-            self.sequences = ['09']
+            self.sequences = ['00']
         else:
             # self.sequences = ['00', '08', '09', '10', '11', '12', '13', '14', '15', '16', '17', '18', '19', '20', '21']
             self.sequences = ['00', '01', '02', '03', '04', '05', '06', '07' ]
@@ -68,7 +68,7 @@ class VisualOdometryDataLoader(torch.utils.data.Dataset):
         pose1 = self.get6DoFPose(self.poses[sequence][index])
         pose2 = self.get6DoFPose(self.poses[sequence][index+1])
         odom = pose2 - pose1
-        odom[0] = self.normalize_angle_delta(odom[0])
+
         if self.transform is not None:
             img1 = self.transform(img1)
             img2 = self.transform(img2)
@@ -88,21 +88,42 @@ class VisualOdometryDataLoader(torch.utils.data.Dataset):
         n = np.linalg.norm(I - shouldBeIdentity)
         return n < 1e-6
 
-    def rotationMatrixToEulerAngles(self,R) :
+    def rotationMatrixToEulerAngles(self,M) :
     
-        sy = math.sqrt(R[2,1] * R[2,1] +  R[0,2] * R[0,2])
+        i = 2
+        j = 0
+        k = 1
+        repetition = 0
+        frame = 1
+        parity = 0
         
-        singular = sy < 1e-6
-    
-        if  not singular :
-            x = math.atan2(R[2,1] , R[2,2])
-            y = math.atan2(-R[2,0], sy)
-            z = math.atan2(R[1,0], R[0,0])
-        else :
-            x = math.atan2(-R[1,2], R[1,1])
-            y = math.atan2(-R[2,0], sy)
-            z = 0
-        return np.array([x, y, z])
+
+        if repetition:
+            sy = math.sqrt(M[i, j]*M[i, j] + M[i, k]*M[i, k])
+            if sy > _EPS:
+                ax = math.atan2( M[i, j],  M[i, k])
+                ay = math.atan2( sy,       M[i, i])
+                az = math.atan2( M[j, i], -M[k, i])
+            else:
+                ax = math.atan2(-M[j, k],  M[j, j])
+                ay = math.atan2( sy,       M[i, i])
+                az = 0.0
+        else:
+            cy = math.sqrt(M[i, i]*M[i, i] + M[j, i]*M[j, i])
+            if cy > _EPS:
+                ax = math.atan2( M[k, j],  M[k, k])
+                ay = math.atan2(-M[k, i],  cy)
+                az = math.atan2( M[j, i],  M[i, i])
+            else:
+                ax = math.atan2(-M[j, k],  M[j, j])
+                ay = math.atan2(-M[k, i],  cy)
+                az = 0.0
+
+        if parity:
+            ax, ay, az = -ax, -ay, -az
+        if frame:
+            ax, az = az, ax        
+        return np.array([ax, ay, az])
 
     def get6DoFPose(self, p):
         pos = np.array([p[3], p[7], p[11]])
@@ -110,12 +131,6 @@ class VisualOdometryDataLoader(torch.utils.data.Dataset):
         angles = self.rotationMatrixToEulerAngles(R)
         return np.concatenate((angles,pos))
 
-    def normalize_angle_delta(self,angle):
-        if(angle > np.pi):
-            angle = angle - 2 * np.pi
-        elif(angle < -np.pi):
-            angle = 2 * np.pi + angle
-        return angle
 if __name__ == "__main__":
     db = VisualOdometryDataLoader("/work/ws-tmp/g059598-vo/dataset",test=True)
     im_stack, odom = db[313]

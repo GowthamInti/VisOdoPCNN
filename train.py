@@ -1,8 +1,9 @@
 import io
 import os
+
 import sys
 from tqdm import tqdm
-sys.path.append('/work/ws-tmp/g059598-vo/ptlflow/ptlflow')
+sys.path.append('/work/ws-tmp/g059598-vo/Vo_code/ptlflow/ptlflow')
 from argparse import Namespace
 from PIL import Image
 import numpy as np
@@ -15,18 +16,20 @@ import torch
 from torch import hub
 import datetime
 import torch.optim as optim
+from torchvision import transforms as T
 from torchvision import transforms
 from torch.autograd import Variable
 
 from models.flownet.flownet2ss import FlowNet2SS
-from torchvision.utils  import flow_to_image,make_grid
-from model.helper import plot_route,eulerAnglesToRotationMatrix,rel2abs
+from torchvision.utils  import make_grid, flow_to_image
+from model.helper import plot_route,eulerAnglesToRotationMatrix,rel2abs #flow_to_image
 
 from model.pcnn import Pcnn,Pcnn1,Pcnn2
 from model.dataset import VisualOdometryDataLoader
 
 from torch.utils.tensorboard import SummaryWriter
-
+if torch.cuda.is_available():
+    os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:4024"
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -44,25 +47,32 @@ def get_loss(pred, y):
         
         angle_loss = torch.nn.functional.mse_loss(pred[:,:3], y[:,:3])
         translation_loss = torch.nn.functional.mse_loss(pred[:,3:], y[:,3:])
-        loss = (100 * angle_loss + translation_loss)
+        loss = (angle_loss + translation_loss)
         return loss
 
 def train_model(model, flowmodel,train_loader, optimizer, epoch,length,args,scheduler):
     # switch to train mode
     running_loss = 0.0
+    height = 96;
+    width = 312;
+    new_img_size = [height,width]
+    transform = T.Resize(new_img_size)
+
     for batch_idx, (images_stacked, odometries_stacked) in enumerate(tqdm(train_loader)):
         images_stacked, odometries_stacked = images_stacked.to(device), odometries_stacked.to(device)
         images_stacked = images_stacked.permute(1, 0, 2, 3, 4,5)        
         flow_output = flowmodel(images_stacked[0])
-        flow_output['flows']= flow_output['flows'].permute(1,0, 2,3,4)
+        flow_output['flows']= flow_output['flows'].permute(1,0,2,3,4)
+        
         flow_image = flow_to_image(flow_output['flows'][0])
-        flow_image = flow_image.to(device)
-        optimizer.zero_grad()
-        scheduler.step()
-        estimated_odometry = model(flow_image/255.0)
+        flow_image = flow_image.detach()
+
+        estimated_odometry = model(transform(flow_image)/255.0)
         loss = get_loss(estimated_odometry, odometries_stacked)
+        optimizer.zero_grad()
         loss.backward()
         optimizer.step()
+        scheduler.step()
         running_loss += loss.item()
         if batch_idx % 10 == 9:    # print every 10 mini-batches   
             print('[%d, %5d] loss: %.3f' % 
@@ -80,7 +90,7 @@ def train(model,flowmodel, datapath, checkpoint_path, epochs,preprocess, args):
     train_loader = torch.utils.data.DataLoader(VisualOdometryDataLoader(datapath, transform=preprocess), batch_size=args.bsize, shuffle=True, drop_last=True, **kwargs)
     length =len(train_loader)
     optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
-    scheduler =optim.lr_scheduler.StepLR(optimizer, step_size=3000, gamma=0.1)
+    scheduler =optim.lr_scheduler.StepLR(optimizer, step_size=7500, gamma=0.1)
     for epoch in range(1, epochs + 1):
         # train for one epoch
         train_model(model,flowmodel, train_loader, optimizer, epoch,length,args,scheduler )
@@ -95,6 +105,10 @@ def test_model(model,flowmodel, test_loader,length,args):
     out =[]
     gt =[]
     ele= np.random.randint(low=1, high=length/args.bsize, size = 1)
+    height = 96;
+    width = 312;
+    new_img_size = [height,width]
+    transform = T.Resize(new_img_size)
     with torch.no_grad():
         for images_stacked, odometries_stacked in tqdm(test_loader):
             images_stacked, odometries_stacked = images_stacked.to(device), odometries_stacked.to(device)
@@ -103,19 +117,20 @@ def test_model(model,flowmodel, test_loader,length,args):
             flow_output = flowmodel(images_stacked[0])
             flow_output['flows']= flow_output['flows'].permute(1,0,2,3, 4)        
             flow_image = flow_to_image(flow_output['flows'][0])
-            flow_image = flow_image.to(device)
+            flow_image = flow_image.detach()
             if len(out) == ele :
-                grid = make_grid(flow_image)
+                grid = make_grid(transform(flow_image))
+                writer.add_image('flow_images', grid, 0)
                 grid2 = make_grid(images_stacked[0][:,1])
                 writer.add_image('original_images', grid2, 1)
-                writer.add_image('flow_images', grid, 0)
-            estimated_odometry = model(flow_image/255.0)
+            estimated_odometry = model(transform(flow_image)/255.0)
             loss = get_loss(estimated_odometry, odometries_stacked)
-            print(odometries_stacked)
+
             out.append(estimated_odometry.cpu().numpy())
             gt.append(odometries_stacked.cpu().numpy())
             writer.add_scalar("Loss/test", loss,len(out))
-    return np.concatenate(gt), np.concatenate(out)
+            #np.savetxt('my_data1.txt',np.concatenate(gt))
+        return np.concatenate(gt), np.concatenate(out)
 
 
 def test(model,flowmodel, datapath, preprocess,args):
@@ -125,7 +140,7 @@ def test(model,flowmodel, datapath, preprocess,args):
     gt_rel ,out_rel = test_model(model,flowmodel, test_loader,length,args)
     gt_abs,out_abs  = rel2abs(gt_rel),rel2abs(out_rel)
     #print(out_abs)
-    visualise(gt_abs,out_abs)
+    visualise(np.mat(gt_abs[:,0:3,3]),np.mat(out_abs[:,0:3,3]))
 
 def visualise(gt,out):
     fig = plot_route(gt, out, 'r', 'b')
@@ -145,27 +160,21 @@ if __name__ == "__main__":
     parser.add_argument('--weight_decay', type=float, default=0.0005, metavar='M', help='momentum (default: 0.0005)')
     parser.add_argument('--tau', default=0.0001, type=float, help='moving average for target network')
     parser.add_argument('--debug', dest='debug', action='store_true')
-    parser.add_argument('--train_iter', default=200, type=int, help='train iters each timestep')
+    parser.add_argument('--train_iter', default=250, type=int, help='train iters each timestep')
     #parser.add_argument('--validation_steps', default=100, type=int, help='test iters each timestep')
     parser.add_argument('--epsilon', default=50000, type=int, help='linear decay of exploration policy')
-    parser.add_argument('--checkpoint_path', default='/work/ws-tmp/g059598-vo/PCNN2/PCNN/checkpoint', type=str, help='Checkpoint path')
+    parser.add_argument('--checkpoint_path', default='/work/ws-tmp/g059598-vo/Vo_code/PCNN2/PCNN/checkpoint', type=str, help='Checkpoint path')
     parser.add_argument('--checkpoint', default=None, type=str, help='Checkpoint')
-    parser.add_argument('--checkpoint_load',default='/work/ws-tmp/g059598-vo/PCNN2/PCNN/checkpoint/Pcnn_10.ckpt', type=str, help='Checkpoint_load')
+    parser.add_argument('--checkpoint_load',default='/work/ws-tmp/g059598-vo/Vo_code/PCNN2/PCNN/checkpoint/model.pth', type=str, help='Checkpoint_load')
     args = parser.parse_args()
     current_datetime = datetime.datetime.now()
     current_date = current_datetime.strftime("%Y-%m-%d %H:%M")
-    parent_dir = '/work/ws-tmp/g059598-vo/PCNN2/PCNN/runs/'
+    parent_dir = '/work/ws-tmp/g059598-vo/Vo_code/PCNN2/PCNN/runs'
     directory = args.model+args.mode+current_date
     path = os.path.join(parent_dir, directory)
     if not os.path.exists(path):
         os.mkdir(path)
     writer = SummaryWriter(log_dir=path)
-
-    # normalize = transforms.Normalize(
-    #     #mean=[121.50361069 / 127., 122.37611083 / 127., 121.25987563 / 127.],
-    #     mean=[127. / 255., 127. / 255., 127. / 255.],
-    #     std=[1 / 255., 1 / 255., 1 / 255.]
-    # )
 
     preprocess = transforms.Compose([
         transforms.Resize((192,640)),
@@ -182,18 +191,20 @@ if __name__ == "__main__":
         model = Pcnn2()
     
     flowmodel = FlowNet2SS(args2)
-    ckpt = torch.load('/work/ws-tmp/g059598-vo/FlowNet2-S_checkpoint.pth.tar', map_location=torch.device('cpu'))
-    state_dict = ckpt['state_dict']
-    ckpt2 = torch.load('/work/ws-tmp/g059598-vo/ptlflow/flownet2-things-d63b53a7.ckpt', map_location=torch.device('cpu'))
-    state_dict2 =ckpt2['state_dict']
-    flowdict = {}
-    for k, v in state_dict.items():
-        flowdict['flownets_1.'+k] = v
-        flowdict['flownets_2.'+k] = v
-    for k, v in state_dict2.items():
-        if k.startswith('flownetfusion'):
-            flowdict[k] = v
-    flowmodel.load_state_dict(flowdict, strict=True)  
+    flowdict = torch.load('/work/ws-tmp/g059598-vo/Vo_code/PCNN2/PCNN/checkpoint/flowdict.pth', map_location=torch.device('cpu'))
+    flowmodel.load_state_dict(flowdict, strict=True)
+    # ckpt = torch.load('/work/ws-tmp/g059598-vo/Vo_code/FlowNet2-S_checkpoint.pth.tar', map_location=torch.device('cpu'))
+    # state_dict = ckpt['state_dict']
+    # ckpt2 = torch.load('/work/ws-tmp/g059598-vo/Vo_code/ptlflow/flownet2-things-d63b53a7.ckpt', map_location=torch.device('cpu'))
+    # state_dict2 =ckpt2['state_dict']
+    # flowdict = {}
+    # for k, v in state_dict.items():
+    #     flowdict['flownets_1.'+k] = v
+    #     flowdict['flownets_2.'+k] = v
+    # for k, v in state_dict2.items():
+    #     if k.startswith('flownetfusion'):
+    #         flowdict[k] = v
+    # flowmodel.load_state_dict(flowdict, strict=True)  
     
    
     # if args.checkpoint is not None:
@@ -215,7 +226,8 @@ if __name__ == "__main__":
 
     if args.checkpoint is not None:
         checkpoint  = torch.load(args.checkpoint_load,map_location=torch.device('cpu'))
-        model.load_state_dict(checkpoint['state_dict'])
+        model.load_state_dict(checkpoint['state_dict'], strict = 'True')
+        print('loaded')
     model.to(device)
     flowmodel.to(device)
 

@@ -6,31 +6,22 @@ class Cnn4b(nn.Module):
     def __init__(self):
         super().__init__()
         
-        self.conv1_1 = nn.Conv2d(3, 64, 9)
-        self.conv1_2 = nn.Conv2d(64, 20, 2)
-        # self.fc1_1 = nn.Linear(4768,1000)
-        #self.fc1_2 = nn.Linear(1000,6)
+        self.conv1_1 = nn.Conv2d(3, 64, 9,padding =[1,1])
+        self.conv1_2 = nn.Conv2d(64, 20, 2,padding =[1,1])
 
-        self.conv2_1 = nn.Conv2d(3, 64, 9)
-        self.conv2_2 = nn.Conv2d(64, 20, 2)
-        # self.fc2_1 = nn.Linear(4768,1000)
-        # self.fc2_2 = nn.Linear(600, 2000)
+        self.conv2_1 = nn.Conv2d(3, 64, 9,padding =[1,1])
+        self.conv2_2 = nn.Conv2d(64, 20, 2,padding =[1,1])
 
-        self.conv3_1 = nn.Conv2d(3, 64, 9)
-        self.conv3_2 = nn.Conv2d(64, 20, 2)
-        # self.fc3_1 = nn.Linear(4768,1000)
-        # self.fc3_2 = nn.Linear(600, 2000)
+        self.conv3_1 = nn.Conv2d(3, 64, 9,padding =[1,1])
+        self.conv3_2 = nn.Conv2d(64, 20, 2,padding =[1,1])
 
-        self.conv4_1 = nn.Conv2d(3, 64, 9)
-        self.conv4_2 = nn.Conv2d(64, 20, 2)
-        # self.fc4_1 = nn.Linear(4768,1000)
-        # self.fc4_2 = nn.Linear(600, 2000)
-
-        self.pooling = nn.AvgPool2d(4,padding =1)
-        self.pool1 = nn.MaxPool2d(4)
-        self.pool2 = nn.MaxPool2d(2)
+        self.conv4_1 = nn.Conv2d(3, 64, 9,padding =[1,1])
+        self.conv4_2 = nn.Conv2d(64, 20, 2,padding =[1,1])
+ 
+        self.pooling = nn.AvgPool2d(2)
+        self.pool1 = nn.MaxPool2d(4,stride =4)
+        self.pool2 = nn.MaxPool2d(2,stride =2)
         self.flatten = nn.Flatten()
-        self.unfold =unfold = nn.Unfold(kernel_size=(192, 640),stride =192)
 
     def forward(self, x):
 
@@ -44,31 +35,31 @@ class Cnn4b(nn.Module):
             if i==0:
                 x = self.pool1(self.conv1_1(x))
                 y = self.pool2(self.conv1_2(x))
-                y = F.relu(self.flatten(y))    # flatten all dimensions except batch                       
-                x = F.relu(self.flatten(x))# flatten all dimensions except batch                       
-                # x = self.fc1_1(torch.cat((x,y),1))
-                # x = self.fc1_2(x)
+                y = self.flatten(y)   # flatten all dimensions except batch                       
+                x = self.flatten(x)# flatten all dimensions except batch                       
+                x = torch.cat((x,y),1)
+          
             if i==1:
                 x = self.pool1(self.conv2_1(x))
                 y = self.pool2(self.conv2_2(x))
-                y = F.relu(self.flatten(y))    # flatten all dimensions except batch                       
-                x = F.relu(self.flatten(x))# flatten all dimensions except batch                       
-                # x = self.fc2_1(torch.cat((x,y),1))
-                # x = self.fc2_2(x)
+                y = self.flatten(y) # flatten all dimensions except batch                       
+                x = self.flatten(x)# flatten all dimensions except batch                       
+                x = torch.cat((x,y),1)
+
             if i==2:
                 x = self.pool1(self.conv3_1(x))
                 y = self.pool2(self.conv3_2(x))
-                y = F.relu(self.flatten(y))    # flatten all dimensions except batch                       
-                x = F.relu(self.flatten(x))# flatten all dimensions except batch                       
-                # x = self.fc3_1(torch.cat((x,y),1))
-                # x = self.fc3_2(x)
+                y = self.flatten(y)   # flatten all dimensions except batch                       
+                x = self.flatten(x)# flatten all dimensions except batch                       
+                x = torch.cat((x,y),1)
+
             if i==3:
                 x = self.pool1(self.conv4_1(x))
                 y = self.pool2(self.conv4_2(x))
-                y = F.relu(self.flatten(y))    # flatten all dimensions except batch                       
-                x = F.relu(self.flatten(x))# flatten all dimensions except batch                       
-                # x = self.fc4_1(torch.cat((x,y),1))
-                # x = self.fc4_2(x)                             
+                y = self.flatten(y)    # flatten all dimensions except batch                       
+                x = self.flatten(x)# flatten all dimensions except batch                       
+                x = torch.cat((x,y),1)# flatten all dimensions except batch                       
+
             ls.append(x)
         
         y =torch.stack(ls, dim=1)
