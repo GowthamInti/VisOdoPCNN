@@ -5,9 +5,7 @@ import numpy as np
 import random
 import math
 import datetime
-from numpy import *
-from .utility import *
-from numpy.linalg import norm
+
 import torch.utils.data
 import torchvision.transforms as transforms
 _EPS = np.finfo(float).eps * 4.0
@@ -49,6 +47,7 @@ class VisualOdometryDataLoader(torch.utils.data.Dataset):
         image_path = os.path.join(self.base_path, 'sequences', sequence, 'image_2', '%06d' % index + '.png')
         image = self.loader(image_path)
         return image
+
     def matrix_rt(self, p):
         return np.vstack([np.reshape(p.astype(np.float32), (3, 4)), [[0., 0., 0., 1.]]])
 
@@ -69,10 +68,17 @@ class VisualOdometryDataLoader(torch.utils.data.Dataset):
         odometries = []
         img1 = self.get_image(self.sequences[sequence], index)
         img2 = self.get_image(self.sequences[sequence], index+1)
-        pose1 = self.get6DoFPose(self.poses[sequence][index])
-        pose2 = self.get6DoFPose(self.poses[sequence][index+1])
-        odom = pose2 - pose1
-        print(odom[:3])
+        pose1 = self.matrix_rt(self.poses[sequence][index])
+        pose2 = self.matrix_rt(self.poses[sequence][index+1])
+        pose2wrt1 = np.dot(np.linalg.inv(pose1), pose2)
+
+        R = pose2wrt1[0:3, 0:3]
+        pos = pose2wrt1[0:3, 3]
+        # import ipdb;ipdb.set_trace()
+        angles = self.rotationMatrixToEulerAngles(R)
+        # angles = self.normalize_euler_angles(angles)
+
+        odom = np.concatenate((pos,angles))
         if self.transform is not None:
             img1 = self.transform(img1)
             img2 = self.transform(img2)
@@ -88,72 +94,49 @@ class VisualOdometryDataLoader(torch.utils.data.Dataset):
     def isRotationMatrix(self, R):
         Rt = np.transpose(R)
         shouldBeIdentity = np.dot(Rt, R)
-        I = np.identity(3, dtype = R.dtype)
+        I = np.identity(3, dtype=R.dtype)
         n = np.linalg.norm(I - shouldBeIdentity)
         return n < 1e-6
 
-    def rotationMatrixToEulerAngles(self,rotation_matrix) :
-    
-        sy = np.sqrt(rotation_matrix[0, 0] ** 2 + rotation_matrix[1, 0] ** 2)
+    def rotationMatrixToEulerAngles(self, R):
+        assert (self.isRotationMatrix(R))
+        sy = math.sqrt(R[0, 0] * R[0, 0] + R[1, 0] * R[1, 0])
         singular = sy < 1e-6
 
         if not singular:
-            roll = np.arctan2(rotation_matrix[2, 1], rotation_matrix[2, 2])
-            pitch = np.arctan2(-rotation_matrix[2, 0], sy)
-            yaw = np.arctan2(rotation_matrix[1, 0], rotation_matrix[0, 0])
+            x = math.atan2(R[2, 1], R[2, 2])
+            y = math.atan2(-R[2, 0], sy)
+            z = math.atan2(R[1, 0], R[0, 0])
         else:
-            roll = np.arctan2(-rotation_matrix[1, 2], rotation_matrix[1, 1])
-            pitch = np.arctan2(-rotation_matrix[2, 0], sy)
-            yaw = 0.0        
-        return np.array([roll, pitch, yaw])
-    def get6DoFPose(self, p):
-        # R = self.matrix_rt(p)
-        pos = np.array([p[3], p[7], p[11]])
-        R = np.array([[p[0], p[1], p[2]], [p[4], p[5], p[6]], [p[8], p[9], p[10]]])
-        angles = self.rotationMatrixToEulerAngles(R)
-        return np.concatenate((angles,pos))
-    # def tr2eul(self, m):
-    #     """
-    #     Extract Euler angles.
-    #     Returns a vector of Euler angles corresponding to the rotational part of 
-    #     the homogeneous transform.  The 3 angles correspond to rotations about
-    #     the Z, Y and Z axes respectively.
-        
-    #     @type m: 3x3 or 4x4 matrix
-    #     @param m: the rotation matrix
-    #     @rtype: 1x3 matrix
-    #     @return: Euler angles [S{theta} S{phi} S{psi}]
-        
-    #     @see:  L{eul2tr}, L{tr2rpy}
-    #     """
+            x = math.atan2(-R[1, 2], R[1, 1])
+            y = math.atan2(-R[2, 0], sy)
+            z = 0
+        return np.array([x, y, z], dtype=np.float32)
 
-    #     m = mat(m)
-    #     if ishomog(m):
-    #         euler = zeros(3)
-    #         if norm(m[0,2])<finfo(float).eps and norm(m[1,2])<finfo(float).eps:
-    #             # singularity
-    #             euler[0] = 0
-    #             sp = 0
-    #             cp = 1
-    #             euler[1] = arctan2(cp*m[0,2] + sp*m[1,2], m[2,2])
-    #             euler[2] = arctan2(-sp*m[0,0] + cp*m[1,0], -sp*m[0,1] + cp*m[1,1])
-    #             return euler
-    #         else:
-    #             euler[0] = arctan2(m[1,2],m[0,2])
-    #             sp = sin(euler[0])
-    #             cp = cos(euler[0])
-    #             euler[1] = arctan2(cp*m[0,2] + sp*m[1,2], m[2,2])
-    #             euler[2] = arctan2(-sp*m[0,0] + cp*m[1,0], -sp*m[0,1] + cp*m[1,1])
-    #             return euler
-            
-
-
+    def normalize_euler_angles(self, euler_angles):
+        normalized_angles = np.mod(euler_angles + np.pi, 2*np.pi) - np.pi
+        return normalized_angles
 if __name__ == "__main__":
-    db = VisualOdometryDataLoader("/work/ws-tmp/g059598-vo/dataset",test=True)
-    im_stack, odom = db[313]
-    im_stack1, odom2 = db[316]
-    print (odom,odom2,_EPS)
-    im_stack = np.squeeze(im_stack)
+    db = VisualOdometryDataLoader("/work/ws-tmp/g059598-Vo/Vo_code/dataset",test=True,seq='10')
+    # im_stack, odom = db[313]
+    # im_stack1, odom2 = db[316]
+    # print (odom,odom2,_EPS)
+    # im_stack = np.squeeze(im_stack)
+    # import ipdb;ipdb.set_trace()
+    gt_l = []
+    iterator = iter(db)
+    for index in range(1,len(db)):
+        images, gt = next(iterator)
+        gt_l.append(gt.copy())
+    output_file_name = 'outputtgtnonnormalized.txt'
+
+# Open the output text file for writing
+    with open(output_file_name, 'w') as txtfile:
+        # Iterate through the list of arrays
+        for array in gt_l:
+        # Write the array string to the text file
+            array_str = ' '.join(map(str, array))
+            txtfile.write(array_str + '\n')
     # import matplotlib.pyplot as plt
 
     # f, axarr = plt.subplots(2,2)

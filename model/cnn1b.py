@@ -7,7 +7,7 @@ class Cnn1b(nn.Module):
         self.conv1 = nn.Conv2d(3, 64, 9,padding =[1,1])
         self.pool1 = nn.MaxPool2d(4,stride =4)
         self.conv2 = nn.Conv2d(64, 20, 2,padding=[1,1])
-        self.pooling = nn.AvgPool2d(4)
+        self.pooling = nn.AvgPool2d(2)
         self.pool2 = nn.MaxPool2d(2,stride=2)
         self.flatten = nn.Flatten()
 

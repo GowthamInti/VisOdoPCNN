@@ -7,3 +7,8 @@ my_folder/
 runs/
 *.ckpt
 *.png
+runs2/
+results/
+*.pth
+reportedres/
+copy/
