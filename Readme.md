@@ -38,8 +38,10 @@ and place the ground truth pose at dataset/poses/
 
 Downloand ptlflow from[here](https://github.com/hmorimitsu/ptlflow)
 
-and export the path 
-export PYTHON_PACKAGE_PATH="/path/to/ptlflow/ptlflow"
+and export the path so that the flow models cna be accessed directly
+
+    ```bash
+    export PYTHON_PACKAGE_PATH="/path/to/ptlflow/ptlflow"
 
 
 The models can be run directly on Kitti dataset using optical flow models as ptllflow models  
@@ -47,6 +49,7 @@ The models can be run directly on Kitti dataset using optical flow models as ptl
 
 
 # BibTex
+
 @misc{morimitsu2021ptlflow,
   author = {Henrique Morimitsu},
   title = {PyTorch Lightning Optical Flow},
