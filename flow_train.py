@@ -2,7 +2,7 @@ import io
 import os
 import sys
 from tqdm import tqdm
-sys.path.append('/work/ws-tmp/g059598-Vo/Vo_code/ptlflow/ptlflow')
+# sys.path.append('/work/ws-tmp/g059598-Vo/Vo_code/ptlflow/ptlflow')
 from argparse import Namespace
 from PIL import Image
 import numpy as np

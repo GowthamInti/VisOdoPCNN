@@ -205,7 +205,7 @@ if __name__ == "__main__":
     print(args)
     current_datetime = datetime.datetime.now()
     current_date = current_datetime.strftime("%Y-%m-%d %H:%M")
-    parent_dir = '/work/ws-tmp/g059598-Vo/Vo_code/PCNN2/PCNN/runs'
+    parent_dir = './runs'
     directory = args.model+args.mode+current_date
     path = os.path.join(parent_dir, directory)
     if not os.path.exists(path):
