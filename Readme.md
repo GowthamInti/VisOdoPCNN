@@ -32,10 +32,15 @@ This project focuses on training and testing end to end Monocular visual odometr
 Download KITTI data[here](https://www.cvlibs.net/datasets/kitti/eval_odometry.php)
 
 Download the KITTI images and only  the right camera color images (image_02 folder) are required
+
 the downloaded images will be placed at dataset/sequences/images_2/00/, dataset/images_2/01, ...
+
 the images offered by KITTI is already rectified
+
 Download the ground truth pose from KITTI Visual Odometry
+
 you need to enter your email to request the pose data here
+
 and place the ground truth pose at dataset/poses/
 
 Downloand ptlflow from[here](https://github.com/hmorimitsu/ptlflow)
