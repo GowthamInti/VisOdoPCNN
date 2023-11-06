@@ -49,9 +49,9 @@ and export the path so that the flow models cna be accessed directly
 The models can be run directly on Kitti dataset using optical flow models as ptllflow models  
 
     ```bash
-    python your_script.py --model Pcnn --mode train --datapath /path/to/your/dataset --bsize 8 --lr 0.0001 --train_iter 200 --seq 00 --checkpoint_path /path/to/checkpoints --save_res /path/to/results
+    python flow_train.py --model Pcnn --mode train --datapath /path/to/your/dataset --bsize 8 --lr 0.0001 --train_iter 200  --checkpoint_path /path/to/checkpoints --save_res /path/to/results
 
-    python your_script.py --model Pcnn --mode test --datapath /path/to/your/dataset --seq 00 --checkpoint_load /path/to/checkpoint/model.pth --save_res /path/to/results
+    python flow_train.py --model Pcnn --mode test --datapath /path/to/your/dataset --seq 00 --checkpoint_load /path/to/checkpoint/model.pth --save_res /path/to/results
 
 
 # BibTex
