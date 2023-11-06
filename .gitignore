@@ -11,4 +11,4 @@ runs2/
 results/
 *.pth
 reportedres/
-copy/
+copy/ 
