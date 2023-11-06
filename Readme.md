@@ -1,10 +1,11 @@
-# Monocular Odometry using Optical flow and Deep neural Networks
+# Monocular Odometry using Optical flow and Deep Neural Networks
 
-This project focuses on training and testing end to end Monocular visula odometry models using deep learning techniques. Visual odometry is a key component in robotics and autonomous systems, enabling the estimation of a camera or robot's motion and position based on visual input.
+This project focuses on training and testing end to end Monocular visual odometry models using deep learning techniques. Visual odometry is a key component in robotics and autonomous systems, enabling the estimation of a camera or robot's motion and position based on visual input.
 
 ## Overview
 
 - The code uses deep convolutional neural networks (CNNs) and GPUs for optical flow estimation.
+- The code leverages [PTLFLow]() library to utilize the flow models 
 - Several models, such as `Pcnn`, `Pcnn1`, and `Pcnn2`, are available for testing and training.
 - Training data is typically sourced from datasets like KITTI odometry and MPI-Sintel.
 - The code includes both training and testing modes to help develop and evaluate visual odometry models.
@@ -29,7 +30,8 @@ This project focuses on training and testing end to end Monocular visula odometr
    pip install -r requirements.txt
 
 Download KITTI data[here](https://www.cvlibs.net/datasets/kitti/eval_odometry.php)
- Download the KITTI images and only  the right camera color images (image_02 folder) are required
+
+Download the KITTI images and only  the right camera color images (image_02 folder) are required
 the downloaded images will be placed at dataset/sequences/images_2/00/, dataset/images_2/01, ...
 the images offered by KITTI is already rectified
 Download the ground truth pose from KITTI Visual Odometry
@@ -46,6 +48,10 @@ and export the path so that the flow models cna be accessed directly
 
 The models can be run directly on Kitti dataset using optical flow models as ptllflow models  
 
+    ```bash
+    python your_script.py --model Pcnn --mode train --datapath /path/to/your/dataset --bsize 8 --lr 0.0001 --train_iter 200 --seq 00 --checkpoint_path /path/to/checkpoints --save_res /path/to/results
+
+    python your_script.py --model Pcnn --mode test --datapath /path/to/your/dataset --seq 00 --checkpoint_load /path/to/checkpoint/model.pth --save_res /path/to/results
 
 
 # BibTex
